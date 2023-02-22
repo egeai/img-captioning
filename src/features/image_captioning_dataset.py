@@ -4,10 +4,10 @@ from torch.utils.data import Dataset
 
 
 class ImageCaptioningDataset(Dataset):
-    def __init__(self, dataset, processor, annotations_file, vocab):
+    def __init__(self, dataset, processor):
         self.dataset = dataset
         self.processor = processor
-        self.vocab = vocab
+        # self.vocab = vocab
         self.transform = transforms.Compose([
             transforms.Resize(224),
             transforms.RandomCrop(224),
@@ -23,15 +23,15 @@ class ImageCaptioningDataset(Dataset):
     def __getitem__(self, idx):
         item = self.dataset[idx]
 
-        caption = item.caption
-        tokens = str(caption).lower().split()
-        target = []
-        target.append(self.vocab.stoi['<start>'])
-        target.extend([self.vocab.stoi[token] for token in tokens])
-        target.append(self.vocab.stoi['<end>'])
-        target = torch.Tensor(target).long()
+        # caption = item.caption
+        # tokens = str(caption).lower().split()
+        # target = []
+        # target.append(self.vocab.stoi['<start>'])
+        # target.extend([self.vocab.stoi[token] for token in tokens])
+        # target.append(self.vocab.stoi['<end>'])
+        # target = torch.Tensor(target).long()
 
-        encoding = self.processor(images=item["image"], text=item["text"], label=label, padding="max_length",
+        encoding = self.processor(images=item["image"], text=item["text"], padding="max_length",
                                   return_tensors="pt")
         # remove batch dimension
         encoding = {k: v.squeeze() for k, v in encoding.items()}

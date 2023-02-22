@@ -107,7 +107,7 @@ def fetch_data(raw_data_path: str, raw_zipped_file_path: str):
 
 
 @flow(name="Ingest flow")
-def main_flow(cfg=None): # cfg type is DictConfig
+def data_structure_flow(cfg=None):  # cfg type is DictConfig
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """

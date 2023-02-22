@@ -58,3 +58,6 @@ Project Organization
 # img-captioning
 
 poetry run python src/data/make_dataset.py
+
+We mainly use the source link below for the project:
+https://github.com/ylaxor/clip-like/blob/main/fine-tune-clip.ipynb

@@ -39,3 +39,16 @@ paths:
     kaggle_radiology_images: ${hydra:runtime.cwd}/data/raw/all_data/test/radiology/images/
     kaggle_radiology_data: ${hydra:runtime.cwd}/data/raw/all_data/test/radiology/testdata.csv
     kaggle_radiology_keywords: ${hydra:runtime.cwd}/data/raw/all_data/test/radiology/keywords.txt
+
+params:
+  max_text_tokens_length: 128
+  microsoft_pretrained: 'microsoft/git-base-coco'
+  salesforce_pretrained: 'Salesforce/blip-image-captioning-large'
+  # text_backbone: 'bert-base-uncased'
+  # image_backbone: 'google/vit-base-patch16-224'
+
+  batch_size: 8
+  max_epochs: 75
+  max_bad_epochs: 9
+  patience: 3
+  factor: 0.1
