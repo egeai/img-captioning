@@ -3,8 +3,6 @@ import os
 import json
 import shutil
 import pandas as pd
-from pathlib import Path
-from dotenv import find_dotenv, load_dotenv, dotenv_values
 from kaggle.api.kaggle_api_extended import KaggleApi
 from prefect import flow, task, get_run_logger
 from zipfile import ZipFile
@@ -13,7 +11,7 @@ api = KaggleApi()
 api.authenticate()
 
 
-@task(log_prints=True)
+# @task(log_prints=True)
 def unzip_data(raw_data_path: str, raw_zipped_file_path: str):
     logger = get_run_logger()
     logger.info("Unzipping the dataset file!")
@@ -38,7 +36,7 @@ def export_metadata(metadata_list: list[dict[str, str]], path: str) -> None:
             f.write(json.dumps(item) + "\n")
 
 
-@task(log_prints=True)
+# @task(log_prints=True)
 def preprocess_data(raw_data_path: str,
                     keywords_path: str,
                     processed_data_path: str) -> pd.DataFrame:
@@ -67,7 +65,7 @@ def preprocess_data(raw_data_path: str,
     return chest_x_ray_df
 
 
-@task(log_prints=True)
+# @task(log_prints=True)
 def move_images_to_processed(chest_x_ray_data: pd.DataFrame, source_path: str, destination_path: str) -> None:
     """
     This function moves images from raw folder to processed folder
@@ -83,7 +81,7 @@ def move_images_to_processed(chest_x_ray_data: pd.DataFrame, source_path: str, d
         shutil.copy(colab_link, gdrive_link)
 
 
-@task(log_prints=True)
+# @task(log_prints=True)
 def check_raw_data(raw_data_path: str) -> bool:
     logger = get_run_logger()
     if os.path.exists(raw_data_path + "all_data") \
@@ -92,11 +90,11 @@ def check_raw_data(raw_data_path: str) -> bool:
             and os.path.exists(raw_data_path + "all_data/validation"):
         logger.info("All data folders are downloaded!")
     else:
-        raise Exception("Data folders aren't downloaded!")
+        return False # raise Exception("Data folders aren't downloaded!")
     return True
 
 
-@task(log_prints=True, retries=3)
+# @task(log_prints=True, retries=3)
 def fetch_data(raw_data_path: str, raw_zipped_file_path: str):
     logger = get_run_logger()
     try:
@@ -108,87 +106,46 @@ def fetch_data(raw_data_path: str, raw_zipped_file_path: str):
     except (FileExistsError, FileNotFoundError) as error:
         raise Exception("Data folders aren't downloaded!", error)
 
-    """
-    # Train Data
-    api.dataset_download_file("virajbagal/roco-dataset",
-                              config["KAGGLE_RADIOLOGY_TRAIN_IMAGES_PATH"],
-                              path=str(project_dir) + config["TRAIN_RAW_DATA_PATH"])
 
-
-    api.dataset_download_file("virajbagal/roco-dataset",
-                              config["KAGGLE_RADIOLOGY_TRAIN_DATA_PATH"],
-                              path=str(project_dir) + config["TRAIN_IMAGES_RAW_DATA_PATH"])
-
-    # Validation Data
-    api.dataset_download_file("virajbagal/roco-dataset",
-                              config["KAGGLE_RADIOLOGY_VAL_DATA_PATH"],
-                              path=str(project_dir) + config["VAL_RAW_DATA_PATH"])
-
-    # Test Data
-    api.dataset_download_file("virajbagal/roco-dataset",
-                              config["KAGGLE_RADIOLOGY_TEST_DATA_PATH"],
-                              path=str(project_dir) + config["TEST_RAW_DATA_PATH"])
-
-"""
-
-
-@flow(name="Ingest Flow")
-def main_flow():
+@flow(name="Ingest flow")
+def main_flow(cfg=None): # cfg type is DictConfig
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
+
     logger = get_run_logger()
-    config = dotenv_values(".env")
+    print(cfg.paths.raw.data)
+    ret_val = check_raw_data(cfg.paths.raw.data)
 
-    raw_data_path = str(project_dir) + config["RAW_DATA_PATH"]
-    raw_zipped_file_path = str(project_dir) + config["RAW_DATA_PATH"] + config["ROCO_DATASET_NAME"]
-    train_raw_images_path = str(project_dir) + config["TRAIN_IMAGES_RAW_DATA_PATH"]
-    train_processed_images_path = str(project_dir) + config["TRAIN_IMAGES_PROCESSED_DATA_PATH"]
+    logger.info("Preprocess Train Data!")
 
-    ret_val = check_raw_data(raw_data_path)
     if ret_val is False:
-        fetch_data(raw_data_path, raw_zipped_file_path)
-    ret_val = check_raw_data(raw_data_path)
+        fetch_data(cfg.paths.raw.data, cfg.paths.raw.zipped_file)
+    ret_val = check_raw_data(cfg.paths.raw.data)
+    print(ret_val)
+    """ 
     if ret_val is True:
         logger.info("Preprocess Train Data!")
         processed_train_df = preprocess_data(
-            str(project_dir) + config["KAGGLE_RADIOLOGY_TRAIN_DATA_PATH"],
-            str(project_dir) + config["KAGGLE_RADIOLOGY_TRAIN_KEYWORDS_PATH"],
-            str(project_dir) + config["TRAIN_PROCESSED_DATA_PATH"]
+            cfg.train.kaggle_radiology_data_path,
+            cfg.train.kaggle_radiology_keywords_path,
+            cfg.train.processed_data_path
         )
-        move_images_to_processed(processed_train_df, train_raw_images_path, train_processed_images_path)
+        move_images_to_processed(processed_train_df, cfg.train.images_raw_data_path, cfg.train.images_processed_data_path)
 
         logger.info("Preprocess Validation Data!")
-        val_raw_images_path = str(project_dir) + config["VAL_IMAGES_RAW_DATA_PATH"]
-        val_processed_images_path = str(project_dir) + config["VAL_IMAGES_PROCESSED_DATA_PATH"]
         processed_val_df = preprocess_data(
-            str(project_dir) + config["KAGGLE_RADIOLOGY_VAL_DATA_PATH"],
-            str(project_dir) + config["KAGGLE_RADIOLOGY_VAL_KEYWORDS_PATH"],
-            str(project_dir) + config["VAL_PROCESSED_DATA_PATH"]
+            cfg.val.kaggle_radiology_data_path,
+            cfg.val.kaggle_radiology_keywords_path,
+            cfg.val.processed_data_path
         )
-        move_images_to_processed(processed_val_df, val_raw_images_path, val_processed_images_path)
+        move_images_to_processed(processed_val_df, cfg.val.images_raw_data_path, cfg.val.images_processed_data_path)
 
         logger.info("Preprocess Test Data!")
-        test_raw_images_path = str(project_dir) + config["TEST_IMAGES_RAW_DATA_PATH"]
-        test_processed_images_path = str(project_dir) + config["TEST_IMAGES_PROCESSED_DATA_PATH"]
         processed_test_df = preprocess_data(
-            str(project_dir) + config["KAGGLE_RADIOLOGY_TEST_DATA_PATH"],
-            str(project_dir) + config["KAGGLE_RADIOLOGY_TEST_KEYWORDS_PATH"],
-            str(project_dir) + config["TEST_PROCESSED_DATA_PATH"]
+            cfg.test.kaggle_radiology_data_path,
+            cfg.test.kaggle_radiology_keywords_path,
+            cfg.test.processed_data_path
         )
-        move_images_to_processed(processed_test_df, test_raw_images_path, test_processed_images_path)
-
-
-if __name__ == '__main__':
-    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    # logging.basicConfig(level=logging.INFO, format=log_fmt)
-
-    # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    load_dotenv(find_dotenv())
-
-    # print(api.set_config_value() get_default_download_dir())
-    main_flow()
+        move_images_to_processed(processed_test_df, cfg.test.images_raw_data_path, cfg.test.images_processed_data_path)
+        """
