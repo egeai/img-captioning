@@ -26,7 +26,7 @@ def unzip_data(raw_data_path: str, raw_zipped_file_path: str):
 def export_metadata(metadata_list: list[dict[str, str]], path: str) -> None:
     """
     This function will prepare metadata for training data.
-    :param metadata_list: metadata which has the list of file_name, text, vocab
+    :param metadata_list: metadata which has the list of file_name, text
     :param path: path for saving preprocessed data
     :return: None
     """
@@ -54,12 +54,11 @@ def preprocess_data(raw_data_path: str,
     ]
     chest_x_ray_df = chest_x_ray_df.drop("id", axis=1)
     logger.info("Rename train data columns to match the structure of HuggingFace.")
-    chest_x_ray_df.rename(columns={'name': 'file_name', 'caption': 'text', 'keywords': 'vocab'}, inplace=True)
+    chest_x_ray_df.rename(columns={'name': 'file_name', 'caption': 'text'}, inplace=True)
     logger.info("Prepare a metadata list from chest x-ray dataframe.")
     metadata_list = []
     for index, row in chest_x_ray_df.iterrows():
-        metadata_list.append(
-            {"file_name": row["file_name"], "text": row["text"], "vocab": row["vocab"].replace("\t", " ")})
+        metadata_list.append({"file_name": row["file_name"], "text": row["text"]})
     logger.info("Export metadata list to the processed folder as metadata.jsonl file.")
     export_metadata(metadata_list, processed_data_path)
     return chest_x_ray_df
