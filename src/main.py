@@ -2,6 +2,10 @@
 
 import os
 import time
+import gc
+
+from IPython.core.display_functions import display
+from PIL import Image
 from pathlib import Path
 import hydra
 from datasets import load_dataset
@@ -11,15 +15,21 @@ from torch.utils.data import DataLoader
 from transformers import logging
 import matplotlib.pyplot as plt
 from omegaconf import DictConfig
-from transformers import (AutoModelForCausalLM,
-                          AutoProcessor)
+from transformers import (CLIPModel,
+                          CLIPProcessor,
+                          AutoModelForCausalLM,
+                          AutoProcessor,
+                          BlipForConditionalGeneration,
+                          VisionEncoderDecoderModel
+                          )
 
 from models.train_model import Train
-from features.image_captioning_dataset import ImageCaptioningDataset
+from data.image_captioning_dataset import ImageCaptioningDataset
 from src.data.make_dataset import data_structure_flow
 from src.models.valid_model import Validation
 
 logging.set_verbosity_error()
+torch.cuda.empty_cache()
 
 
 def make_dir(path_of_folder: str) -> bool:
@@ -28,6 +38,31 @@ def make_dir(path_of_folder: str) -> bool:
         # Create a new directory because it does not exist
         os.makedirs(path_of_folder)
         return True
+
+
+def test_and_predict(model, processor, device, cfg: DictConfig) -> list:
+    predictions = []
+    model.eval()
+    test_dataset = load_dataset("imagefolder", data_dir=cfg.params.data_dir, split="test")
+    test_ds = ImageCaptioningDataset(dataset=test_dataset, processor=processor)
+
+    test_dataloader = torch.utils.data.DataLoader(test_ds, collate_fn=collate_fn,
+                                                  batch_size=cfg.params.train_batch_size)
+    for batch in test_dataloader:
+        # 'input_ids' 'attention_mask' 'pixel_values'
+        input_ids = batch.pop('input_ids').to(device)
+        attention_mask = batch.pop('attention_mask').to(device)
+        pixel_values = batch.pop('pixel_values').to(device)
+
+        with torch.no_grad():
+            outputs = model(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            pixel_values=pixel_values,
+                            labels=input_ids)
+        logits = outputs.logits
+        yhat = torch.argmax(logits, dim=-1)
+        predictions.append(yhat)
+    return predictions
 
 
 def plot_history(history):
@@ -74,14 +109,16 @@ def training(model, train_dataloader, val_dataloader, device, cfg: DictConfig):
 
             train = Train(model=model, train_loader=train_dataloader,
                           optimizer=optimizer,
-                          epoch=epoch,
-                          max_epochs=cfg.params.max_epochs,
-                          device=device)
-
+                          epoch=cfg.params.epochs,
+                          scheduler=lr_scheduler,
+                          device=device,
+                          cfg=cfg)
             epoch_train_loss = train.run()
+
             validate = Validation(model=model, val_dataloader=val_dataloader,
                                   epoch=epoch,
-                                  max_epochs=cfg.params.max_epochs)
+                                  max_epochs=cfg.params.max_epochs,
+                                  device=device)
             epoch_val_score = validate.run()
 
             duration = time.time() - epoch_start_time
@@ -120,35 +157,72 @@ def main(cfg: DictConfig) -> None:
     # set device to cuda
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     # read and prepare dataset structure
-    data_structure_flow(cfg)
+    # data_structure_flow(cfg)
+
     # build vocabulary (no-need-right-now)
     # initialize, load model and processor from pre-trained
     processor = AutoProcessor.from_pretrained(cfg.params.microsoft_pretrained)
     model = AutoModelForCausalLM.from_pretrained(cfg.params.microsoft_pretrained).to("cuda")
     # load train, valid and test datasets
-    root = "../data/processed/"
-    train_dataset = load_dataset("imagefolder", data_dir=root, split="train")
-    val_dataset = load_dataset("imagefolder", data_dir=root, split="validation")
-    test_dataset = load_dataset("imagefolder", data_dir=root, split="test")
+    # root = cfg.params.data_folder # "./data/processed/"
+
+    train_dataset = load_dataset("imagefolder", data_dir=cfg.params.data_dir, split="train")
+    # val_dataset = load_dataset("imagefolder", data_dir=cfg.params.data_dir, split="validation")
+    # test_dataset = load_dataset("imagefolder", data_dir=cfg.params.data_dir, split="test")
+
     # creating train and validate Dataset and DataLoader
     train_ds = ImageCaptioningDataset(dataset=train_dataset, processor=processor)
+    """
+    print(train_ds[0].keys())
+
     val_ds = ImageCaptioningDataset(dataset=val_dataset, processor=processor)
-    train_dataloader = torch.utils.data.DataLoader(train_ds, collate_fn=collate_fn, batch_size=cfg.params.batch_size)
-    val_dataloader = torch.utils.data.DataLoader(val_ds, collate_fn=collate_fn, batch_size=cfg.params.batch_size)
+
+    train_dataloader = torch.utils.data.DataLoader(train_ds, collate_fn=collate_fn,
+                                                   batch_size=cfg.params.train_batch_size)
+    val_dataloader = torch.utils.data.DataLoader(val_ds, collate_fn=collate_fn,
+                                                 batch_size=cfg.params.valid_batch_size)
 
     history = training(model, train_dataloader, val_dataloader, device=device, cfg=cfg)
     # plot the history
     plot_history(history)
+    """
+
+    example = train_dataset[0]
+    image = example["image"]
+    width, height = image.size
+    img = Image.open(image.resize((int(0.3 * width), int(0.3 * height))))
+    display(img)
+
+    # predictions = test_and_predict(model=model, processor=processor, device=device, cfg=cfg)
+    # print(predictions[0])
+
+
+def report_gpu():
+    print(torch.cuda.list_gpu_processes())
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
     # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[1]
+    # project_dir = Path(__file__).resolve().parents[1]
     # mkdir data folder
     make_dir("data")
     # mkdir processed sub folder
     make_dir("data/processed")
+    # train sub folders
+    make_dir("data/processed/train")
+    make_dir("data/processed/train/images")
+    # validation sub folders
+    make_dir("data/processed/validation")
+    make_dir("data/processed/validation/images")
+    # test sub folders
+    make_dir("data/processed/test")
+    make_dir("data/processed/test/images")
     # mkdir raw sub folder
     make_dir("data/raw")
     # call the main function
+
+    # report_gpu()
+
     main()

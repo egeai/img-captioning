@@ -58,7 +58,7 @@ def preprocess_data(raw_data_path: str,
     logger.info("Prepare a metadata list from chest x-ray dataframe.")
     metadata_list = []
     for index, row in chest_x_ray_df.iterrows():
-        metadata_list.append({"file_name": row["file_name"], "text": row["text"]})
+        metadata_list.append({"file_name": "images/"+row["file_name"], "text": row["text"]})
     logger.info("Export metadata list to the processed folder as metadata.jsonl file.")
     export_metadata(metadata_list, processed_data_path)
     return chest_x_ray_df
@@ -121,30 +121,35 @@ def data_structure_flow(cfg=None):  # cfg type is DictConfig
     if ret_val is False:
         fetch_data(cfg.paths.raw.data, cfg.paths.raw.zipped_file)
     ret_val = check_raw_data(cfg.paths.raw.data)
-    print(ret_val)
-    """ 
+
     if ret_val is True:
         logger.info("Preprocess Train Data!")
         processed_train_df = preprocess_data(
-            cfg.train.kaggle_radiology_data_path,
-            cfg.train.kaggle_radiology_keywords_path,
-            cfg.train.processed_data_path
+            cfg.paths.train.kaggle_radiology_data,
+            cfg.paths.train.kaggle_radiology_keywords,
+            cfg.paths.train.processed_data
+
         )
-        move_images_to_processed(processed_train_df, cfg.train.images_raw_data_path, cfg.train.images_processed_data_path)
+
+        print(len(processed_train_df))
+        move_images_to_processed(processed_train_df,
+                                 cfg.paths.train.images_raw_data,
+                                 cfg.paths.train.images_processed_data)
 
         logger.info("Preprocess Validation Data!")
         processed_val_df = preprocess_data(
-            cfg.val.kaggle_radiology_data_path,
-            cfg.val.kaggle_radiology_keywords_path,
-            cfg.val.processed_data_path
+            cfg.paths.val.kaggle_radiology_data,
+            cfg.paths.val.kaggle_radiology_keywords,
+            cfg.paths.val.processed_data
         )
-        move_images_to_processed(processed_val_df, cfg.val.images_raw_data_path, cfg.val.images_processed_data_path)
-
+        print(len(processed_val_df))
+        move_images_to_processed(processed_val_df, cfg.paths.val.images_raw_data, cfg.paths.val.images_processed_data)
+        
+        
         logger.info("Preprocess Test Data!")
         processed_test_df = preprocess_data(
-            cfg.test.kaggle_radiology_data_path,
-            cfg.test.kaggle_radiology_keywords_path,
-            cfg.test.processed_data_path
+            cfg.paths.test.kaggle_radiology_data,
+            cfg.paths.test.kaggle_radiology_keywords,
+            cfg.paths.test.processed_data
         )
-        move_images_to_processed(processed_test_df, cfg.test.images_raw_data_path, cfg.test.images_processed_data_path)
-        """
+        move_images_to_processed(processed_test_df, cfg.paths.test.images_raw_data, cfg.paths.test.images_processed_data)

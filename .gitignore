@@ -98,3 +98,6 @@ target/
 notebooks/kaggle.json
 
 notebooks/roco-dataset.zip
+
+#Pytorch model
+*.pt
